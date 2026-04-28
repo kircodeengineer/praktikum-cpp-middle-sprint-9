@@ -48,21 +48,33 @@ public:
     }
 
     void Run() {
-        auto compute_sched = compute_pool_.get_scheduler();
-        auto sfml_sched = sfml_thread_.get_scheduler();
+        FrameClock frame_clock;  // ← Локально, не в state_
+        auto compute_sched{compute_pool_.get_scheduler()};
+        auto sfml_sched{sfml_thread_.get_scheduler()};
 
-        auto initialize =
-            ex::on(sfml_sched,
-                   ex::just() | ex::then([this]() {
-                       state_ = std::make_unique<SfmlState>(  //
-                           RenderSettings{.width = 800, .height = 600, .max_iterations = 100, .escape_radius = 2.0});
-                   }));
+        auto initialize{ex::on(sfml_sched, ex::just() | ex::then([this]() {
+                                               state_ = std::make_unique<SfmlState>(RenderSettings{800, 600, 100, 2.0});
+                                           }))};
         ex::sync_wait(std::move(initialize));
 
-        auto process_frame = ex::just(); // Ваш код здесь
+        auto process_frame{
+            ex::just(SfmlEventHandler{state_->window, state_->render_settings, state_->app_state}) |
+            ex::let_value([this, &frame_clock](auto) {
+                return ex::just() | ex::then([this, &frame_clock]() {
+                           if (!state_->app_state.need_rerender)
+                               return;
 
-        auto repeated_pipeline = std::move(process_frame) | ex::then([this] { return state_->app_state.should_exit; }) |
-                                 exec::repeat_effect_until();
+                           ex::sync_wait(
+                               mandelbrot::MakeComputeSender(state_->render_settings, state_->app_state.viewport) |
+                               render::MakeSfmlDisplaySender(*state_) |
+                               ex::then([this]() { state_->app_state.need_rerender = false; }) |
+                               ex::then(WaitForFPS{frame_clock, static_cast<unsigned int>(WaitForFPS::TARGET_FPS)}));
+                       });
+            })};
+
+        auto repeated_pipeline{std::move(process_frame) | ex::then([this] { return state_->app_state.should_exit; }) |
+                               exec::repeat_effect_until()};
+
         ex::sync_wait(std::move(repeated_pipeline));
     }
 
