@@ -1,11 +1,11 @@
-FROM ubuntu@sha256:79efa276fdefa2ee3911db29b0608f8c0561c347ec3f4d4139980d43b168d991
+FROM ubuntu:24.04
 
 # Update the package database
 RUN apt clean
 RUN apt update
 
 # Install common tools
-RUN apt install -y python3-minimal python3-pip pipx git less vim sudo cmake make g++-15 clang-format clangd-20
+RUN apt install -y python3-minimal python3-pip pipx git less vim sudo cmake make g++-14 clang-format clangd-20
 
 # Install additional tools and libraries
 RUN apt install -y libsfml-dev
@@ -18,8 +18,8 @@ RUN apt autoremove -y \
     && rm -rf /tmp/*
 
 # Update  gcc/g++ version to the latest ones
-RUN ln -fs /usr/bin/g++-15 /usr/bin/g++
-RUN ln -fs /usr/bin/gcc-15 /usr/bin/gcc
+RUN ln -fs /usr/bin/g++-14 /usr/bin/g++
+RUN ln -fs /usr/bin/gcc-14 /usr/bin/gcc
 
 ARG USERNAME=dev
 ARG USER_UID=1000
